@@ -3,18 +3,23 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <vector>
+
 #include "Book.h"
 #include "Customer.h"
+#include "omp.h"
+#include "Binary_Search_Tree.h"
 
 using namespace std;
-map<int, Book> createUnratedBook(map<int, Book> books, map<int, Customer> customers, Customer currentUser);
-bool optionFucntion(map<int, Customer> customers, map<int, Book> Books, int ID, int option);
-map<int, Book> loadbooks(istream& fin, map<int, Book> bookmap);
+map<int, Book> createUnratedBook(map<int, Book> books, map<int, Customer> customers, Customer currentUser, vector<int>& booksvector);
+bool optionFucntion(map<int, Customer> customers, map<int, Book> Books, int ID, int option, vector<int>& booksvector);
+map<int, Book> loadbooks(istream& fin, map<int, Book> bookmap, vector<int>& booksvector);
 map<int, Customer> loadcustomers(istream& fin, map<int, Customer> custmap);
 void loadratings(istream& fin, map<int, Customer>& custmap);
 void main() {
 	map<int,Customer> custmap;
 	map<int, Book> bookmap;
+	vector<int> booksvector;
 	int ID;
 	int option;
 	ifstream fin, fin2, fin3;
@@ -22,13 +27,18 @@ void main() {
 	fin2.open("books.txt");
 	fin3.open("ratings.txt");
 	custmap = loadcustomers(fin, custmap);
-	bookmap = loadbooks(fin2, bookmap);
+	bookmap = loadbooks(fin2, bookmap, booksvector);
 	loadratings(fin3, custmap);
 	cout << "Enter ID>>";
 	cin >> ID;
 	cout << " What would you like to do today? \n 1. Search a book and maybe rate it? \n 2. Rate a book that you havent rated before? \n 3. View Book recomendations by revelance \n >>";
 	cin >> option;
-	bool correct = optionFucntion(custmap, bookmap, ID, option);
+	bool correct = optionFucntion(custmap, bookmap, ID, option, booksvector);
+	while (correct) {
+		cout << " What would you like to do today? \n 1. Search a book and maybe rate it? \n 2. Rate a book that you havent rated before? \n 3. View Book recomendations by revelance \n 4. Exit >>";
+		cin >> option;
+		correct = optionFucntion(custmap, bookmap, ID, option, booksvector);
+	}
 	
 	system("pause");
 }
@@ -114,7 +124,7 @@ void loadratings(istream& fin, map<int, Customer>& custmap) {
 		}
 	}
 }
-map<int, Book> loadbooks(istream& fin, map<int, Book> bookmap) {
+map<int, Book> loadbooks(istream& fin, map<int, Book> bookmap, vector<int>& booksvector) {
 	int ISBN;
 	string title;
 	string line,temp;
@@ -137,6 +147,7 @@ map<int, Book> loadbooks(istream& fin, map<int, Book> bookmap) {
 			}
 			Book temp(ISBN, title);
 			bookmap[ISBN] = temp;
+			booksvector.push_back(ISBN);
 		}
 		else {
 			temps2 << line;
@@ -148,7 +159,7 @@ map<int, Book> loadbooks(istream& fin, map<int, Book> bookmap) {
 	return bookmap;
 }
 
-bool optionFucntion(map<int, Customer> customers, map<int, Book> Books, int ID, int option) {
+bool optionFucntion(map<int, Customer> customers, map<int, Book> Books, int ID, int option, vector<int>& booksvector) {
 	string response;
 	bool YN = true;
 	bool again = true;
@@ -239,26 +250,52 @@ bool optionFucntion(map<int, Customer> customers, map<int, Book> Books, int ID, 
 		}
 		return true;
 	case 3:
-		unrated = createUnratedBook(Books, customers, customers[ID]);
-	default:
+		customers[ID].findSimilar(customers);
+		unrated = createUnratedBook(Books, customers, customers[ID], booksvector);
+		return true;
+	case 4:
+		cout << "bye bye!";
 		return false;
+	default:
+		return true;
 		break;
 	}
 }
 
 
-map<int, Book> createUnratedBook(map<int, Book> books, map<int, Customer> customers, Customer currentUser) {
+map<int, Book> createUnratedBook(map<int, Book> books, map<int, Customer> customers, Customer currentUser, vector<int>& booksvector) {
 	map<int, Book> unrated;
-	omp_set_num_threads(3);
-	#pragma omp parallel for
+	int size = currentUser.similarcustomers.size();
+	for (int i = 0; i < size; i++)
 	{
-		int ID = omp_get_thread_num();
-
-		currentUser.findSimilar(customers);
-		map<int, Book>::iterator itr;
-		for (itr = books.begin(); itr != books.end(); itr++) {
-			if (!currentUser.findIfrated(itr->second.getISBN())) {
-				unrated[itr->second.getISBN()] = itr->second;
+		Customer* temp = currentUser.similarcustomers[i].sim;
+		float weight = currentUser.similarcustomers[i].totalweight;
+		float total = currentUser.similarcustomers[i].booksimilar;
+		if (weight != 0) {
+			float math = (weight / total);
+			omp_set_num_threads(2);
+			int count = 0;
+			#pragma omp parallel for
+			for (int i = 0; i < booksvector.size(); i++) {
+				if (temp->findIfrated(booksvector[i]) && temp->findRating(booksvector[i]) > 3 && !(currentUser.findIfrated(booksvector[i])) && (math > 0.50))
+				{
+					unrated[booksvector[i]] = books[booksvector[i]];
+				}
+			}
+		}
+	}
+	map<int, Book>::iterator itr;
+	int show = 0;
+	string answer = "";
+	cout << "based on customers who haved liked similar books to you! \nWe recommend these books:";
+	for (itr = unrated.begin(); itr != unrated.end(); itr++) {
+		cout << "ISBN: " << itr->first << " Title: " << itr->second.getTitle() << endl;
+		show += 1;
+		if (show == 10) {
+			cout << "These 10 books are recomended did you want to see the rest?(Y/N) \n>>";
+			cin >> answer;
+			if (answer == "N" || answer == "n") {
+				break;
 			}
 		}
 	}
