@@ -23,8 +23,9 @@ private:
 			sim = new Customer();
 		}
 	};
-	map<int, Similar> similarcustomers;
+	
 public:
+	map<int, Similar> similarcustomers;
 	Customer() { Fname = ""; Lname = ""; ID = NULL; };
 	Customer(string First, string Last, int id) {
 		Fname = First; 
@@ -35,8 +36,10 @@ public:
 		ratings[ISBN] = rating;
 	}
 	int findRating(int ISBN) {
+		int rating;
 		if (ratings.find(ISBN) != ratings.end()) {
-			return ratings[ISBN];
+			rating = ratings[ISBN];
+			return rating;
 		}
 	}
 	bool findIfrated(int ISBN) {
@@ -49,6 +52,7 @@ public:
 	}
 	void findSimilar(map<int, Customer> similar) {
 		int counter = 0;
+		int numsimilar = 0;
 		map<int, Customer>::iterator itr;
 		map<int, int>::iterator ratingItr;
 		for (itr = similar.begin(); itr != similar.end(); itr++) {
@@ -66,7 +70,8 @@ public:
 				Customer ref = itr->second;
 				*temp.sim = ref;
 				temp.totalweight = sumOfvector(weightList);
-				similarcustomers[itr->first] = temp;
+				numsimilar++;
+				similarcustomers[numsimilar] = temp;
 				counter = 0;
 			}
 		}
@@ -74,6 +79,7 @@ public:
 	string getFname() { return Fname; };
 	string getLname() { return Lname; };
 	int getID() { return ID; };
+	map<int, Similar> getSimilar() { return similarcustomers; }
 };
 
 float sumOfvector(vector<float> tosum) {
